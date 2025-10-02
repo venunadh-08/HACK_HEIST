@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Roboto:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gfg-dark-bg text-gfg-text-light font-body;
+    position: relative; /* Needed for ::before pseudo-element positioning */
+    min-height: 100vh; /* Ensure body takes full height for background to cover */
+    overflow-x: hidden; /* Prevent horizontal scroll if background image is too wide */
+  }
+
+  body::before {
+    content: '';
+    position: fixed; /* Fixed position relative to viewport */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('/mask.png'); /* Adjust path if needed */
+    background-size: cover; /* Cover the entire area */
+    background-position: center center; /* Center the image */
+    background-repeat: no-repeat;
+    opacity: 0.02; /* Adjust transparency as desired (e.g., 0.03 for very subtle, 0.1 for more visible) */
+    z-index: 1; /* Place behind all other content */
+    pointer-events: none; /* Ensure it doesn't interfere with mouse events */
+  }
+}
