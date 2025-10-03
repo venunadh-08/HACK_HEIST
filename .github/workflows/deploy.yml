@@ -38,27 +38,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-```
-
-### Step 3: Remove Old Deployment Scripts (Optional but Recommended)
-
-Your `package.json` file still contains the old `predeploy` and `deploy` scripts. Since GitHub Actions will now handle everything, you can remove them to avoid confusion.
-
-* **Open `package.json`** and remove these two lines from the `"scripts"` section:
-    ```diff
-    - "predeploy": "npm run build",
-    - "deploy": "gh-pages -d dist"
-    ```
-
-### Your New Deployment Process
-
-From now on, you **do not need to run `npm run deploy`** from your computer.
-
-Your new workflow is much simpler:
-1.  Make your code changes locally.
-2.  Commit and push your changes to the `main` branch.
-    ```bash
-    git add .
-    git commit -m "Your commit message"
-    git push origin main
-    
