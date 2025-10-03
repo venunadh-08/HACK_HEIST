@@ -61,7 +61,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 // Add type React.ChangeEvent<HTMLInputElement> for the input change event
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light placeholder-gfg-text-dark focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none transition-colors"
-                placeholder="gfg.organizer@example.com"
+                placeholder="your_regno@klu.ac.in"
                 disabled={isLoading}
               />
             </div>
