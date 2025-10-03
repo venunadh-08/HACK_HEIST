@@ -109,8 +109,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner:
     <div className="bg-gfg-card-bg rounded-lg border border-gfg-border p-6">
       <h3 className="text-gfg-text-light font-bold text-lg mb-4 flex items-center font-heading uppercase tracking-wider">
         <ScanLine className="w-5 h-5 mr-2 text-gfg-gold" />
-        QR Code Scanner
-      </h3>
+        Identity Scan      </h3>
 
       {!isScanning && cameras.length > 0 && (
         <div className="mb-4">
