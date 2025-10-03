@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 import gfgLogo from '/gfg_logo.png';
+
+// The parseCSV function is needed again to process the file
+const parseCSV = (csvText: string): any[] => {
+  const lines = csvText.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  return lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.trim());
+    const obj: any = {};
+    headers.forEach((header, i) => {
+      obj[header] = values[i];
+    });
+    return obj;
+  });
+};
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
@@ -11,24 +26,40 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [organizers, setOrganizers] = useState<any[]>([]);
 
-  // Add type React.FormEvent for the form submission event
+  // useEffect is added back to fetch the Organizers.csv file on component load
+  useEffect(() => {
+    const loadOrganizers = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL}Organizers.csv`);
+        if (response.ok) {
+          const organizersText = await response.text();
+          setOrganizers(parseCSV(organizersText));
+        } else {
+          console.error("Failed to fetch Organizers.csv");
+        }
+      } catch (err) {
+        console.error("Error loading Organizers.csv", err);
+      }
+    };
+    loadOrganizers();
+  }, []);
+
+  // handleSubmit now checks the email against the state populated from the CSV
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    const authorizedEmailsStr = import.meta.env.VITE_AUTHORIZED_ORGANIZERS || "";
-    const authorizedEmails = authorizedEmailsStr.split(',').map((e: string) => e.trim().toLowerCase());
+    const organizer = organizers.find(o => o.email && o.email.toLowerCase() === email.trim().toLowerCase());
 
-    const isAuthorized = authorizedEmails.includes(email.trim().toLowerCase());
-
-    if (isAuthorized) {
+    if (organizer) {
       onLogin({
         id: email.split('@')[0],
         email: email,
         role: 'organizer',
-        name: email.split('@')[0],
+        name: organizer.name || email.split('@')[0],
       });
     } else {
       setError('Organizer not found or not authorized.');
@@ -47,7 +78,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <h1 className="text-6xl font-extrabold text-gfg-text-light font-heading mb-4 tracking-tight">
             HACK <span className="bg-gfg-red text-gfg-text-light px-2 py-1 leading-none inline-block">HEIST</span>
           </h1>
-          <p className="text-gfg-gold text-lg font-body uppercase tracking-widest mb-2">ATTENDANCE SYSTEM</p>
         </div>
         <div className="bg-gfg-card-bg rounded-lg shadow-2xl border border-gfg-border overflow-hidden">
           <div className="bg-gradient-to-r from-gfg-red to-gfg-red-hover p-4">
@@ -58,10 +88,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <label htmlFor="email" className="block text-sm font-body font-medium text-gfg-text-dark mb-2 tracking-wide">ORGANIZER EMAIL</label>
               <input
                 type="email" id="email" value={email}
-                // Add type React.ChangeEvent<HTMLInputElement> for the input change event
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light placeholder-gfg-text-dark focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none transition-colors"
-                placeholder="your_regno@klu.ac.in"
+                placeholder="gfg.organizer@example.com"
                 disabled={isLoading}
               />
             </div>

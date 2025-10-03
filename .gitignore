@@ -1,8 +1,1 @@
 node_modules
-# Sensitive Data
-/public/Participants.csv
-/public/Organizers.csv
-#Environment variables
-.env
-.env.*
-!.env.example
