@@ -105,7 +105,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
     setTimeout(() => {
       setIsProcessingScan(false);
       setScanResult(null);
-    }, 3000);
+    }, 5000);
   };
 
   const handleAttendanceUpdate = async (userId: string, session: number, present: boolean) => {
@@ -237,7 +237,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
         <div className="border-b border-gfg-border mb-6">
           <nav className="-mb-px flex space-x-6 font-heading" aria-label="Tabs">
             <button onClick={() => setActiveTab('scan')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm uppercase tracking-wider ${activeTab === 'scan' ? 'border-gfg-gold text-gfg-gold' : 'border-transparent text-gfg-text-dark hover:text-gfg-text-light'}`}>
-              QR Scanner
+              Identity Scan
             </button>
             <button onClick={() => setActiveTab('manual')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm uppercase tracking-wider ${activeTab === 'manual' ? 'border-gfg-gold text-gfg-gold' : 'border-transparent text-gfg-text-dark hover:text-gfg-text-light'}`}>
               Manual Entry

@@ -76,6 +76,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <h1 className="text-6xl font-extrabold text-gfg-text-light font-heading mb-4 tracking-tight">
             HACK <span className="bg-gfg-red text-gfg-text-light px-2 py-1 leading-none inline-block">HEIST</span>
           </h1>
+          <p className="text-gfg-gold text-lg font-body uppercase tracking-widest mb-2">attendance sytem</p>
         </div>
         <div className="bg-gfg-card-bg rounded-lg shadow-2xl border border-gfg-border overflow-hidden">
           <div className="bg-gradient-to-r from-gfg-red to-gfg-red-hover p-4">
