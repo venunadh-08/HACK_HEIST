@@ -7,24 +7,24 @@
 @layer base {
   body {
     @apply bg-gfg-dark-bg text-gfg-text-light font-body;
-    position: relative; /* Needed for ::before pseudo-element positioning */
-    min-height: 100vh; /* Ensure body takes full height for background to cover */
-    overflow-x: hidden; /* Prevent horizontal scroll if background image is too wide */
+    position: relative; 
+    min-height: 100vh; 
+    overflow-x: hidden; 
   }
 
   body::before {
     content: '';
-    position: fixed; /* Fixed position relative to viewport */
+    position: absolute; /* Changed from fixed to absolute */
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: url('/mask.png'); /* Adjust path if needed */
-    background-size: cover; /* Cover the entire area */
-    background-position: center center; /* Center the image */
+    background-image: url('/dali_mask.png'); 
+    background-size: cover; 
+    background-position: center center; 
     background-repeat: no-repeat;
-    opacity: 0.02; /* Adjust transparency as desired (e.g., 0.03 for very subtle, 0.1 for more visible) */
-    z-index: 1; /* Place behind all other content */
-    pointer-events: none; /* Ensure it doesn't interfere with mouse events */
+    opacity: 0.02; 
+    z-index: -1; 
+    pointer-events: none; 
   }
 }
