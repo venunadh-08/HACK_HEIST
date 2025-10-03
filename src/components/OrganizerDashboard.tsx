@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, Download, LogOut, UserCheck, Hash, AlertCircle, ScanLine, Clock } from 'lucide-react';
 import { User as UserType, AttendanceRecord, Session } from '../types';
 import AttendanceTable from './AttendanceTable';
@@ -6,6 +6,7 @@ import QRScanner from './QRScanner';
 import { db } from '../firebase';
 import { ref, onValue, set, Unsubscribe } from 'firebase/database';
 
+// ... (keep the parseCSV function as it is)
 const parseCSV = (csvText: string): Omit<AttendanceRecord, 'session1' | 'session2' | 'session3' | 'lastUpdated' | 'userId'>[] => {
   const lines = csvText.trim().split('\n');
   if (lines.length < 2) return [];
@@ -29,6 +30,7 @@ const parseCSV = (csvText: string): Omit<AttendanceRecord, 'session1' | 'session
   }).filter(p => p.regNo);
 };
 
+
 interface OrganizerDashboardProps {
   user: UserType;
   onLogout: () => void;
@@ -44,8 +46,13 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
   const [isProcessingScan, setIsProcessingScan] = useState(false);
   const [exportSession, setExportSession] = useState(1);
   const [activeTab, setActiveTab] = useState<'scan' | 'manual' | 'table'>('scan');
+  
+  // Refs to control the scanner component
+  const scannerStartRef = useRef<() => void>(() => {});
+  const scannerStopRef = useRef<() => void>(() => {});
 
   useEffect(() => {
+    // ... (keep the useEffect for firebase data loading as it is)
     const attendanceRef = ref(db, 'attendance');
     const unsubscribe: Unsubscribe = onValue(attendanceRef, (snapshot) => {
       const dbData = snapshot.val();
@@ -57,7 +64,6 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
     });
     const loadFromCSVAndSeedDatabase = async () => {
       try {
-        // THIS IS THE ONLY LINE THAT HAS BEEN CHANGED
         const response = await fetch(`${import.meta.env.BASE_URL}Participants.csv`);
         if (!response.ok) return;
         const csvText = await response.text();
@@ -80,34 +86,34 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
   const handleScan = (scannedText: string) => {
     if (isProcessingScan) return;
     setIsProcessingScan(true);
-    setScanResult(null);
 
-    try {
-      const registrationNumber = scannedText.trim();
-      if (!registrationNumber) throw new Error("Scanned code is empty.");
-      
-      const participant = attendanceRecords.find(p => p.regNo === registrationNumber);
-      if (!participant) {
-        throw new Error(`Participant with ID "${registrationNumber}" not found.`);
-      }
-
+    const participant = attendanceRecords.find(p => p.regNo === scannedText.trim());
+    if (!participant) {
+      setScanResult({ type: 'error', text: `Participant with ID "${scannedText}" not found.` });
+    } else {
       const sessionKey = `session${selectedSession}` as keyof AttendanceRecord;
       if (participant[sessionKey] === true) {
         setScanResult({ type: 'warning', text: `${participant.name} is already marked as PRESENT.` });
       } else {
+        // This is a successful scan
+        scannerStopRef.current(); // Stop the scanner
         handleAttendanceUpdate(participant.userId, selectedSession, true);
         setScanResult({ type: 'success', text: `Success! ${participant.name} marked PRESENT.` });
       }
-    } catch (e: any) {
-      setScanResult({ type: 'error', text: e.message || "An unknown error occurred during scan." });
     }
-
+    
+    // Timer to clear message and restart scanner
     setTimeout(() => {
-      setIsProcessingScan(false);
       setScanResult(null);
-    }, 5000);
+      setIsProcessingScan(false);
+      // Restart scanner only if the tab is still active and there was a success/warning
+      if (activeTab === 'scan' && (!participant || participant[`session${selectedSession}` as keyof AttendanceRecord] !== true)) {
+          scannerStartRef.current();
+      }
+    }, 4000);
   };
 
+  // ... (keep handleAttendanceUpdate, handleManualEntry, exportToCSV functions as they are)
   const handleAttendanceUpdate = async (userId: string, session: number, present: boolean) => {
     try {
       let recordIndex = -1;
@@ -189,9 +195,10 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
     document.body.appendChild(a); a.click();
     window.URL.revokeObjectURL(url); document.body.removeChild(a);
   };
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gfg-gradient-start to-gfg-gradient-end font-body">
+      {/* ... (keep the entire JSX return statement as it is, from the header down to the closing div) */}
       <div className="bg-gfg-card-bg border-b border-gfg-border sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
@@ -216,7 +223,6 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
           </div>
         </div>
       </div>
-
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="mb-6 p-4 bg-gfg-card-bg rounded-lg border border-gfg-border flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center text-lg font-semibold text-gfg-text-light font-heading">
@@ -233,7 +239,6 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
                 <option value={3}>Session 3</option>
             </select>
         </div>
-
         <div className="border-b border-gfg-border mb-6">
           <nav className="-mb-px flex space-x-6 font-heading" aria-label="Tabs">
             <button onClick={() => setActiveTab('scan')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm uppercase tracking-wider ${activeTab === 'scan' ? 'border-gfg-gold text-gfg-gold' : 'border-transparent text-gfg-text-dark hover:text-gfg-text-light'}`}>
@@ -247,13 +252,14 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
             </button>
           </nav>
         </div>
-
         {activeTab === 'scan' && (
           <div className="-mt-6">
             <QRScanner 
               key={selectedSession} 
               onScan={handleScan} 
-              scanResult={scanResult} 
+              scanResult={scanResult}
+              startScanner={() => scannerStartRef.current()}
+              stopScanner={() => scannerStopRef.current()}
             />
           </div>
         )}
@@ -275,7 +281,6 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
             </div>
           </div>
         )}
-
         {activeTab === 'table' && (
           <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">

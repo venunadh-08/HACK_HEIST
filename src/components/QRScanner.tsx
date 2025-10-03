@@ -1,39 +1,39 @@
-import React, { useState, useRef, useEffect } from 'react'; // THIS LINE FIXES THE ERRORS
+import React, { useState, useRef, useEffect } from 'react';
 import { Html5Qrcode, CameraDevice } from 'html5-qrcode';
 import { AlertCircle, Camera, ScanLine, XCircle, RefreshCw } from 'lucide-react';
 
 interface QRScannerProps {
   onScan: (decodedText: string) => void;
   scanResult: { type: 'success' | 'error' | 'warning'; text: string } | null;
+  // Add props to allow parent to control the scanner
+  startScanner: () => void;
+  stopScanner: () => void;
 }
 
 const scannerId = "qr-reader-container";
 
-const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult }) => {
+const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner: parentStart, stopScanner: parentStop }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(undefined);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
-  // Function to get available camera devices
   const getCameras = () => {
     Html5Qrcode.getCameras().then(devices => {
       if (devices && devices.length) {
         setCameras(devices);
-        // Automatically select the back camera if available
         const backCamera = devices.find(device => device.label.toLowerCase().includes('back'));
         setSelectedCameraId(backCamera ? backCamera.id : devices[0].id);
       }
-    }).catch((err: any) => { // Added type for 'err'
+    }).catch((err: any) => {
       console.error("Error getting cameras:", err);
     });
   };
 
-  // Get cameras on component mount
   useEffect(() => {
     getCameras();
   }, []);
-
+  
   const startScanner = async () => {
     if (!selectedCameraId) {
       alert("No camera selected.");
@@ -43,14 +43,12 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult }) => {
     if (!html5QrCodeRef.current) {
       html5QrCodeRef.current = new Html5Qrcode(scannerId, { verbose: false });
     }
-
-    const qrCodeSuccessCallback = (decodedText: string) => {
-      onScan(decodedText);
-    };
     
-    const qrCodeErrorCallback = (errorMessage: string) => { /* Ignore errors */ };
+    // Prevent starting if already scanning
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        return;
+    }
 
-    // More robust config
     const config = {
       fps: 10,
       qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
@@ -61,15 +59,14 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult }) => {
 
     try {
       await html5QrCodeRef.current.start(
-        selectedCameraId, // Use the selected camera ID
+        selectedCameraId,
         config,
-        qrCodeSuccessCallback,
-        qrCodeErrorCallback
+        (decodedText: string) => onScan(decodedText), // Directly call onScan
+        (errorMessage: string) => { /* Ignore errors */ }
       );
       setIsScanning(true);
-    } catch (err: any) { // Added type for 'err'
+    } catch (err: any) {
       console.error("Failed to start QR scanner", err);
-      alert("Could not start camera. Please ensure you have granted permission.");
     }
   };
 
@@ -78,17 +75,32 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult }) => {
       try {
         await html5QrCodeRef.current.stop();
         setIsScanning(false);
-      } catch (err: any) { // Added type for 'err'
+      } catch (err: any) {
         console.error("Failed to stop QR scanner", err);
       }
     }
   };
   
+  // Expose start/stop functions to parent component
+  useEffect(() => {
+    parentStartRef.current = startScanner;
+    parentStopRef.current = stopScanner;
+  }, [selectedCameraId]); // Re-bind if camera changes
+
+  const parentStartRef = useRef(parentStart);
+  const parentStopRef = useRef(parentStop);
+
+  useEffect(() => {
+    // These refs ensure the parent always calls the latest version of start/stop
+    parentStartRef.current = startScanner;
+    parentStopRef.current = stopScanner;
+  });
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch((err: any) => console.error("Cleanup failed", err));
+        html5QrCodeRef.current.stop().catch(err => console.error("Cleanup failed", err));
       }
     };
   }, []);
@@ -100,28 +112,27 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult }) => {
         Identity Scan
       </h3>
 
-      {/* Camera Selection Dropdown */}
       {!isScanning && cameras.length > 0 && (
         <div className="mb-4">
-          <label htmlFor="camera-select" className="block text-sm font-body font-medium text-gfg-text-dark mb-2">Select Camera</label>
-          <div className="flex gap-2">
-            <select
+           <label htmlFor="camera-select" className="block text-sm font-body font-medium text-gfg-text-dark mb-2">Select Camera</label>
+           <div className="flex gap-2">
+             <select
               id="camera-select"
               value={selectedCameraId}
               onChange={(e) => setSelectedCameraId(e.target.value)}
               className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none"
             >
-              {cameras.map((camera: CameraDevice) => ( // Added type for 'camera'
+              {cameras.map((camera: CameraDevice) => (
                 <option key={camera.id} value={camera.id}>
                   {camera.label}
                 </option>
               ))}
             </select>
-            <button onClick={getCameras} title="Refresh Camera List" className="p-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-gold hover:bg-gfg-border">
+             <button onClick={getCameras} title="Refresh Camera List" className="p-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-gold hover:bg-gfg-border">
               <RefreshCw className="w-5 h-5" />
             </button>
-          </div>
-        </div>
+           </div>
+         </div>
       )}
 
       <div className="w-full max-w-sm mx-auto p-1 bg-gfg-dark-bg rounded-lg shadow-inner">
