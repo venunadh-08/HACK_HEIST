@@ -1,0 +1,64 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # Trigger the workflow on push to the main branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # Use a recent LTS version of Node.js
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+        env:
+          # Pass your secrets to the build command
+          VITE_AUTHORIZED_ORGANIZERS: ${{ secrets.VITE_AUTHORIZED_ORGANIZERS }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+
+      - name: Deploy 🚀
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+```
+
+### Step 3: Remove Old Deployment Scripts (Optional but Recommended)
+
+Your `package.json` file still contains the old `predeploy` and `deploy` scripts. Since GitHub Actions will now handle everything, you can remove them to avoid confusion.
+
+* **Open `package.json`** and remove these two lines from the `"scripts"` section:
+    ```diff
+    - "predeploy": "npm run build",
+    - "deploy": "gh-pages -d dist"
+    ```
+
+### Your New Deployment Process
+
+From now on, you **do not need to run `npm run deploy`** from your computer.
+
+Your new workflow is much simpler:
+1.  Make your code changes locally.
+2.  Commit and push your changes to the `main` branch.
+    ```bash
+    git add .
+    git commit -m "Your commit message"
+    git push origin main
+    
