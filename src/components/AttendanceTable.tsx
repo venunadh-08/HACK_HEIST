@@ -34,8 +34,8 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({ records }) => {
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by Name,Reg No, or Team"
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+            placeholder="Search by Name, Reg No, or Team"
             className="w-full pl-10 pr-4 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light placeholder-gfg-text-dark focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none"
           />
         </div>
@@ -102,3 +102,4 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({ records }) => {
 };
 
 export default AttendanceTable;
+

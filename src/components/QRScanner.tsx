@@ -1,18 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Html5Qrcode, CameraDevice } from 'html5-qrcode';
 import { AlertCircle, Camera, ScanLine, XCircle, RefreshCw } from 'lucide-react';
 
-interface QRScannerProps {
-  onScan: (decodedText: string) => void;
-  scanResult: { type: 'success' | 'error' | 'warning'; text: string } | null;
-  // Add props to allow parent to control the scanner
+export interface QRScannerHandles {
   startScanner: () => void;
   stopScanner: () => void;
 }
 
+interface QRScannerProps {
+  onScan: (decodedText: string) => void;
+  scanResult: { type: 'success' | 'error' | 'warning'; text: string } | null;
+}
+
 const scannerId = "qr-reader-container";
 
-const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner: parentStart, stopScanner: parentStop }) => {
+const QRScanner = forwardRef<QRScannerHandles, QRScannerProps>(({ onScan, scanResult }, ref) => {
   const [isScanning, setIsScanning] = useState(false);
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(undefined);
@@ -31,22 +33,15 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner:
   };
 
   useEffect(() => {
-    getCameras();
-  }, []);
-  
-  const startScanner = async () => {
-    if (!selectedCameraId) {
-      alert("No camera selected.");
-      return;
-    }
-
     if (!html5QrCodeRef.current) {
       html5QrCodeRef.current = new Html5Qrcode(scannerId, { verbose: false });
     }
-    
-    // Prevent starting if already scanning
-    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        return;
+    getCameras();
+  }, []);
+
+  const startScanner = async () => {
+    if (!html5QrCodeRef.current || !selectedCameraId || html5QrCodeRef.current.isScanning) {
+      return;
     }
 
     const config = {
@@ -61,8 +56,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner:
       await html5QrCodeRef.current.start(
         selectedCameraId,
         config,
-        (decodedText: string) => onScan(decodedText), // Directly call onScan
-        (errorMessage: string) => { /* Ignore errors */ }
+        onScan,
+        (errorMessage: string) => {}
       );
       setIsScanning(true);
     } catch (err: any) {
@@ -81,22 +76,11 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner:
     }
   };
   
-  // Expose start/stop functions to parent component
-  useEffect(() => {
-    parentStartRef.current = startScanner;
-    parentStopRef.current = stopScanner;
-  }, [selectedCameraId]); // Re-bind if camera changes
+  useImperativeHandle(ref, () => ({
+    startScanner,
+    stopScanner,
+  }));
 
-  const parentStartRef = useRef(parentStart);
-  const parentStopRef = useRef(parentStop);
-
-  useEffect(() => {
-    // These refs ensure the parent always calls the latest version of start/stop
-    parentStartRef.current = startScanner;
-    parentStopRef.current = stopScanner;
-  });
-
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
@@ -106,19 +90,20 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner:
   }, []);
 
   return (
-    <div className="bg-gfg-card-bg rounded-lg border border-gfg-border p-6">
+    <div className="relative z-10 bg-gfg-card-bg rounded-lg border border-gfg-border p-6">
       <h3 className="text-gfg-text-light font-bold text-lg mb-4 flex items-center font-heading uppercase tracking-wider">
         <ScanLine className="w-5 h-5 mr-2 text-gfg-gold" />
-        Identity Scan      </h3>
+        QR Code Scanner
+      </h3>
 
       {!isScanning && cameras.length > 0 && (
         <div className="mb-4">
-           <label htmlFor="camera-select" className="block text-sm font-body font-medium text-gfg-text-dark mb-2">Select Camera</label>
-           <div className="flex gap-2">
-             <select
+          <label htmlFor="camera-select" className="block text-sm font-body font-medium text-gfg-text-dark mb-2">Select Camera</label>
+          <div className="flex gap-2">
+            <select
               id="camera-select"
               value={selectedCameraId}
-              onChange={(e) => setSelectedCameraId(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedCameraId(e.target.value)}
               className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none"
             >
               {cameras.map((camera: CameraDevice) => (
@@ -127,11 +112,11 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner:
                 </option>
               ))}
             </select>
-             <button onClick={getCameras} title="Refresh Camera List" className="p-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-gold hover:bg-gfg-border">
+            <button onClick={getCameras} title="Refresh Camera List" className="p-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-gold hover:bg-gfg-border">
               <RefreshCw className="w-5 h-5" />
             </button>
-           </div>
-         </div>
+          </div>
+        </div>
       )}
 
       <div className="w-full max-w-sm mx-auto p-1 bg-gfg-dark-bg rounded-lg shadow-inner">
@@ -181,6 +166,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, scanResult, startScanner:
       )}
     </div>
   );
-};
+});
 
 export default QRScanner;

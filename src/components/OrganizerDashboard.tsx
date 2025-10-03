@@ -2,34 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Users, Download, LogOut, UserCheck, Hash, AlertCircle, ScanLine, Clock } from 'lucide-react';
 import { User as UserType, AttendanceRecord, Session } from '../types';
 import AttendanceTable from './AttendanceTable';
-import QRScanner from './QRScanner';
+import QRScanner, { QRScannerHandles } from './QRScanner';
 import { db } from '../firebase';
-import { ref, onValue, set, Unsubscribe } from 'firebase/database';
-
-// ... (keep the parseCSV function as it is)
-const parseCSV = (csvText: string): Omit<AttendanceRecord, 'session1' | 'session2' | 'session3' | 'lastUpdated' | 'userId'>[] => {
-  const lines = csvText.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-  const regNoIndex = headers.indexOf('regno');
-  const nameIndex = headers.indexOf('name');
-  const emailIndex = headers.indexOf('email');
-  const teamIndex = headers.indexOf('team');
-  if (regNoIndex === -1) {
-    console.error("CSV Parse Error: 'RegNo' header not found.");
-    return [];
-  }
-  return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim());
-    return {
-      regNo: values[regNoIndex] || '',
-      name: values[nameIndex] || '',
-      email: values[emailIndex] || '',
-      team: values[teamIndex] || '',
-    };
-  }).filter(p => p.regNo);
-};
-
+import { ref, onValue, set } from 'firebase/database';
 
 interface OrganizerDashboardProps {
   user: UserType;
@@ -43,51 +18,58 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
   const [selectedSession, setSelectedSession] = useState(1);
   const [manualEntryMessage, setManualEntryMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [scanResult, setScanResult] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
-  const [isProcessingScan, setIsProcessingScan] = useState(false);
   const [exportSession, setExportSession] = useState(1);
   const [activeTab, setActiveTab] = useState<'scan' | 'manual' | 'table'>('scan');
   
-  // Refs to control the scanner component
-  const scannerStartRef = useRef<() => void>(() => {});
-  const scannerStopRef = useRef<() => void>(() => {});
+  const [scanPaused, setScanPaused] = useState(false);
+  const scannerRef = useRef<QRScannerHandles>(null);
 
+  // SECURE VERSION: This useEffect now only loads data from Firebase.
+  // The logic to load from Participants.csv has been removed.
   useEffect(() => {
-    // ... (keep the useEffect for firebase data loading as it is)
     const attendanceRef = ref(db, 'attendance');
-    const unsubscribe: Unsubscribe = onValue(attendanceRef, (snapshot) => {
+    const unsubscribe = onValue(attendanceRef, (snapshot) => {
       const dbData = snapshot.val();
       if (dbData) {
         setAttendanceRecords(Object.values(dbData) as AttendanceRecord[]);
       } else {
-        loadFromCSVAndSeedDatabase();
+        // Data is not in Firebase, show an empty state.
+        console.warn("No participant data found in Firebase. Please seed the database if this is unexpected.");
+        setAttendanceRecords([]);
       }
     });
-    const loadFromCSVAndSeedDatabase = async () => {
-      try {
-        const response = await fetch(`${import.meta.env.BASE_URL}Participants.csv`);
-        if (!response.ok) return;
-        const csvText = await response.text();
-        const parsedData = parseCSV(csvText);
-        if (parsedData.length > 0) {
-          const participants = parsedData.map(p => ({
-            ...p, userId: p.regNo,
-            session1: false, session2: false, session3: false,
-            lastUpdated: new Date().toISOString()
-          }));
-          await set(attendanceRef, participants);
-        }
-      } catch (error) {
-        console.error('Error loading from CSV:', error);
-      }
-    };
     return () => unsubscribe();
   }, []);
 
-  const handleScan = (scannedText: string) => {
-    if (isProcessingScan) return;
-    setIsProcessingScan(true);
+  // This useEffect correctly starts and stops the scanner when the tab changes or the scan is paused.
+  useEffect(() => {
+    if (activeTab === 'scan' && !scanPaused) {
+      const timer = setTimeout(() => scannerRef.current?.startScanner(), 100);
+      return () => clearTimeout(timer);
+    } else {
+      scannerRef.current?.stopScanner();
+    }
+  }, [activeTab, scanPaused]);
 
+  // This useEffect handles the 4-second pause after any scan result.
+  useEffect(() => {
+    if (scanPaused) {
+      const timer = setTimeout(() => {
+        setScanResult(null);
+        setScanPaused(false); // This triggers the effect above to restart the scanner
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [scanPaused]);
+
+  const handleScan = (scannedText: string) => {
+    if (scanPaused) return;
+    
+    // Pause the scanner on any scan result
+    setScanPaused(true);
+    
     const participant = attendanceRecords.find(p => p.regNo === scannedText.trim());
+
     if (!participant) {
       setScanResult({ type: 'error', text: `Participant with ID "${scannedText}" not found.` });
     } else {
@@ -95,52 +77,28 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
       if (participant[sessionKey] === true) {
         setScanResult({ type: 'warning', text: `${participant.name} is already marked as PRESENT.` });
       } else {
-        // This is a successful scan
-        scannerStopRef.current(); // Stop the scanner
         handleAttendanceUpdate(participant.userId, selectedSession, true);
-        setScanResult({ type: 'success', text: `Success! ${participant.name} marked PRESENT.` });
+        setScanResult({ type: 'success', text: `! ${participant.name} marked PRESENT.` });
       }
     }
-    
-    // Timer to clear message and restart scanner
-    setTimeout(() => {
-      setScanResult(null);
-      setIsProcessingScan(false);
-      // Restart scanner only if the tab is still active and there was a success/warning
-      if (activeTab === 'scan' && (!participant || participant[`session${selectedSession}` as keyof AttendanceRecord] !== true)) {
-          scannerStartRef.current();
-      }
-    }, 4000);
   };
 
-  // ... (keep handleAttendanceUpdate, handleManualEntry, exportToCSV functions as they are)
   const handleAttendanceUpdate = async (userId: string, session: number, present: boolean) => {
     try {
-      let recordIndex = -1;
-      const recordToUpdate = attendanceRecords.find((record, index) => {
-        if (record.userId === userId) {
-          recordIndex = index;
-          return true;
-        }
-        return false;
-      });
-      if (recordIndex !== -1 && recordToUpdate) {
+      const recordIndex = attendanceRecords.findIndex(record => record.userId === userId);
+  
+      if (recordIndex !== -1) {
+        const recordToUpdate = attendanceRecords[recordIndex];
         const updatedRecord = { ...recordToUpdate };
-        switch (session) {
-          case 1:
-            updatedRecord.session1 = present;
-            updatedRecord.session1_markedBy = present ? user.email : undefined;
-            break;
-          case 2:
-            updatedRecord.session2 = present;
-            updatedRecord.session2_markedBy = present ? user.email : undefined;
-            break;
-          case 3:
-            updatedRecord.session3 = present;
-            updatedRecord.session3_markedBy = present ? user.email : undefined;
-            break;
-        }
+        const sessionKey = `session${session}` as keyof AttendanceRecord;
+        const markedByKey = `session${session}_markedBy` as keyof AttendanceRecord;
+        
+        // @ts-ignore
+        updatedRecord[sessionKey] = present;
+        // @ts-ignore
+        updatedRecord[markedByKey] = present ? user.email : undefined;
         updatedRecord.lastUpdated = new Date().toISOString();
+
         const recordRef = ref(db, `attendance/${recordIndex}`);
         await set(recordRef, updatedRecord);
       }
@@ -198,8 +156,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gfg-gradient-start to-gfg-gradient-end font-body">
-      {/* ... (keep the entire JSX return statement as it is, from the header down to the closing div) */}
-      <div className="bg-gfg-card-bg border-b border-gfg-border sticky top-0 z-10">
+       <div className="bg-gfg-card-bg border-b border-gfg-border sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
@@ -231,7 +188,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
             </div>
             <select
                 id="session" value={selectedSession}
-                onChange={(e) => setSelectedSession(Number(e.target.value))}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedSession(Number(e.target.value))}
                 className="w-full sm:w-auto px-4 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none"
             >
                 <option value={1}>Session 1</option>
@@ -242,7 +199,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
         <div className="border-b border-gfg-border mb-6">
           <nav className="-mb-px flex space-x-6 font-heading" aria-label="Tabs">
             <button onClick={() => setActiveTab('scan')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm uppercase tracking-wider ${activeTab === 'scan' ? 'border-gfg-gold text-gfg-gold' : 'border-transparent text-gfg-text-dark hover:text-gfg-text-light'}`}>
-              Identity Scan
+              QR Scanner
             </button>
             <button onClick={() => setActiveTab('manual')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm uppercase tracking-wider ${activeTab === 'manual' ? 'border-gfg-gold text-gfg-gold' : 'border-transparent text-gfg-text-dark hover:text-gfg-text-light'}`}>
               Manual Entry
@@ -254,12 +211,10 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
         </div>
         {activeTab === 'scan' && (
           <div className="-mt-6">
-            <QRScanner 
-              key={selectedSession} 
+            <QRScanner
+              ref={scannerRef}
               onScan={handleScan} 
               scanResult={scanResult}
-              startScanner={() => scannerStartRef.current()}
-              stopScanner={() => scannerStopRef.current()}
             />
           </div>
         )}
@@ -271,7 +226,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
               <div className="space-y-4">
                 <div>
                   <label htmlFor="regNo" className="block text-sm font-body font-medium text-gfg-text-dark mb-2">Registration No.</label>
-                  <input type="text" id="regNo" value={manualRegNo} onChange={(e) => setManualRegNo(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleManualEntry()} className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light" placeholder="Enter Registration No."/>
+                  <input type="text" id="regNo" value={manualRegNo} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setManualRegNo(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleManualEntry()} className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light" placeholder="Enter Registration No."/>
                 </div>
                 <button onClick={handleManualEntry} className="w-full bg-gfg-gold hover:bg-gfg-gold-hover text-gfg-card-bg py-3 px-4 rounded-lg font-bold font-heading flex items-center justify-center uppercase tracking-wider">
                   <UserCheck className="w-5 h-5 mr-2" /> Mark Present
@@ -286,8 +241,10 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <h2 className="text-2xl font-bold text-gfg-text-light font-heading tracking-wider">Attendance Records</h2>
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <select value={exportSession} onChange={(e) => setExportSession(Number(e.target.value))} className="px-3 py-2 bg-gfg-card-bg border border-gfg-border rounded-lg text-gfg-text-light focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none font-body">
-                  <option value={1}>Export Session 1</option><option value={2}>Export Session 2</option><option value={3}>Export Session 3</option>
+                <select value={exportSession} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExportSession(Number(e.target.value))} className="px-3 py-2 bg-gfg-card-bg border border-gfg-border rounded-lg text-gfg-text-light focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none font-body">
+                  <option value={1}>Export Session 1</option>
+                  <option value={2}>Export Session 2</option>
+                  <option value={3}>Export Session 3</option>
                 </select>
                 <button onClick={exportToCSV} className="flex flex-grow items-center justify-center space-x-2 bg-gfg-gold hover:bg-gfg-gold-hover text-gfg-card-bg px-4 py-2 rounded-lg transition-colors uppercase font-heading"><Download className="w-4 h-4" /><span>Export</span></button>
               </div>
@@ -301,3 +258,4 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
 };
 
 export default OrganizerDashboard;
+
