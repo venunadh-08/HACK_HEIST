@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Users, AlertCircle } from 'lucide-react';
 import { User } from '../types';
+// CHANGE 1: Import the logo image directly
+import gfgLogo from '/gfg_logo.png'; 
 
 const parseCSV = (csvText: string): any[] => {
   const lines = csvText.trim().split('\n');
@@ -29,7 +31,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   useEffect(() => {
     const loadOrganizers = async () => {
       try {
-        const response = await fetch('/Organizers.csv');
+        // CHANGE 2: Construct the correct path for the CSV file
+        const csvPath = `${import.meta.env.BASE_URL}Organizers.csv`;
+        const response = await fetch(csvPath);
+
         if (response.ok) {
           const organizersText = await response.text();
           setOrganizers(parseCSV(organizersText));
@@ -63,16 +68,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     <div className="min-h-screen bg-gradient-to-br from-gfg-gradient-start to-gfg-gradient-end flex items-center justify-center relative overflow-hidden">
       <div className="relative z-10 w-full max-w-md mx-4">
         <div className="text-center mb-8">
-          {/* GFG Logo */}
           <div className="mb-4">
-            {/* The image should be placed in the 'public' folder or an accessible 'assets' folder */}
-            <img src="/gfg_logo.png" alt="GFG Logo" className="mx-auto h-28 sm:h-28" /> 
-            {/* Assuming gfg_logo.png is in your public folder. Adjust path if necessary. */}
+            {/* CHANGE 3: Use the imported logo variable in the src attribute */}
+            <img src={gfgLogo} alt="GFG Logo" className="mx-auto h-24 sm:h-28" />
           </div>
           <p className="text-gfg-gold text-lg font-body uppercase tracking-widest mb-2">GFG CAMPUS BODY KARE PRESENTS</p>
           <h1 className="text-6xl font-extrabold text-gfg-text-light font-heading mb-4 tracking-tight">
             HACK <span className="bg-gfg-red text-gfg-text-light px-2 py-1 leading-none inline-block">HEIST</span>
-          <p className="text-gfg-gold text-lg font-body uppercase tracking-widest mb-2">Attendance System</p>
           </h1>
         </div>
         <div className="bg-gfg-card-bg rounded-lg shadow-2xl border border-gfg-border overflow-hidden">
@@ -86,7 +88,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 type="email" id="email" value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light placeholder-gfg-text-dark focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none transition-colors"
-                placeholder="your_mail@klu.ac.in"
+                placeholder="gfg.organizer@example.com"
                 disabled={isLoading}
               />
             </div>

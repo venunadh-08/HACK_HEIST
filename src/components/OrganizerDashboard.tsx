@@ -57,7 +57,8 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
     });
     const loadFromCSVAndSeedDatabase = async () => {
       try {
-        const response = await fetch('/Participants.csv');
+        // THIS IS THE ONLY LINE THAT HAS BEEN CHANGED
+        const response = await fetch(`${import.meta.env.BASE_URL}Participants.csv`);
         if (!response.ok) return;
         const csvText = await response.text();
         const parsedData = parseCSV(csvText);
