@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Users, Download, LogOut, UserCheck, Hash, AlertCircle, ScanLine, Clock } from 'lucide-react';
 import { User as UserType, AttendanceRecord, Session } from '../types';
 import AttendanceTable from './AttendanceTable';
-import QRScanner from './QRScanner';
+import QRScanner, { QRScannerHandles } from './QRScanner';
 import { db } from '../firebase';
 import { ref, onValue, set, Unsubscribe } from 'firebase/database';
 
@@ -38,21 +38,21 @@ interface OrganizerDashboardProps {
 
 const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout }) => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  // ... (keep the other state declarations)
   const [sessions] = useState<Session[]>([]);
   const [manualRegNo, setManualRegNo] = useState('');
   const [selectedSession, setSelectedSession] = useState(1);
   const [manualEntryMessage, setManualEntryMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [scanResult, setScanResult] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
-  const [isProcessingScan, setIsProcessingScan] = useState(false);
   const [exportSession, setExportSession] = useState(1);
   const [activeTab, setActiveTab] = useState<'scan' | 'manual' | 'table'>('scan');
   
-  // Refs to control the scanner component
-  const scannerStartRef = useRef<() => void>(() => {});
-  const scannerStopRef = useRef<() => void>(() => {});
+  // New state to control the scanner pause
+  const [scanPaused, setScanPaused] = useState(false);
+  const scannerRef = useRef<QRScannerHandles>(null);
 
+  // ... (keep the useEffect for firebase data loading as it is)
   useEffect(() => {
-    // ... (keep the useEffect for firebase data loading as it is)
     const attendanceRef = ref(db, 'attendance');
     const unsubscribe: Unsubscribe = onValue(attendanceRef, (snapshot) => {
       const dbData = snapshot.val();
@@ -83,11 +83,26 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
     return () => unsubscribe();
   }, []);
 
+  // This useEffect reliably controls the scanner based on the scanPaused state
+  useEffect(() => {
+    if (scanPaused) {
+      scannerRef.current?.stopScanner();
+      const timer = setTimeout(() => {
+        setScanResult(null);
+        setScanPaused(false);
+        if (activeTab === 'scan') {
+          scannerRef.current?.startScanner();
+        }
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [scanPaused, activeTab]);
+
   const handleScan = (scannedText: string) => {
-    if (isProcessingScan) return;
-    setIsProcessingScan(true);
+    if (scanPaused) return;
 
     const participant = attendanceRecords.find(p => p.regNo === scannedText.trim());
+
     if (!participant) {
       setScanResult({ type: 'error', text: `Participant with ID "${scannedText}" not found.` });
     } else {
@@ -95,22 +110,11 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
       if (participant[sessionKey] === true) {
         setScanResult({ type: 'warning', text: `${participant.name} is already marked as PRESENT.` });
       } else {
-        // This is a successful scan
-        scannerStopRef.current(); // Stop the scanner
         handleAttendanceUpdate(participant.userId, selectedSession, true);
-        setScanResult({ type: 'success', text: `Success! ${participant.name} marked PRESENT.` });
+        setScanResult({ type: 'success', text: `! ${participant.name} marked PRESENT.` });
       }
     }
-    
-    // Timer to clear message and restart scanner
-    setTimeout(() => {
-      setScanResult(null);
-      setIsProcessingScan(false);
-      // Restart scanner only if the tab is still active and there was a success/warning
-      if (activeTab === 'scan' && (!participant || participant[`session${selectedSession}` as keyof AttendanceRecord] !== true)) {
-          scannerStartRef.current();
-      }
-    }, 4000);
+    setScanPaused(true);
   };
 
   // ... (keep handleAttendanceUpdate, handleManualEntry, exportToCSV functions as they are)
@@ -199,7 +203,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gfg-gradient-start to-gfg-gradient-end font-body">
       {/* ... (keep the entire JSX return statement as it is, from the header down to the closing div) */}
-      <div className="bg-gfg-card-bg border-b border-gfg-border sticky top-0 z-10">
+       <div className="bg-gfg-card-bg border-b border-gfg-border sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
@@ -242,7 +246,7 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
         <div className="border-b border-gfg-border mb-6">
           <nav className="-mb-px flex space-x-6 font-heading" aria-label="Tabs">
             <button onClick={() => setActiveTab('scan')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm uppercase tracking-wider ${activeTab === 'scan' ? 'border-gfg-gold text-gfg-gold' : 'border-transparent text-gfg-text-dark hover:text-gfg-text-light'}`}>
-              Identity Scan
+              QR Scanner
             </button>
             <button onClick={() => setActiveTab('manual')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm uppercase tracking-wider ${activeTab === 'manual' ? 'border-gfg-gold text-gfg-gold' : 'border-transparent text-gfg-text-dark hover:text-gfg-text-light'}`}>
               Manual Entry
@@ -254,12 +258,10 @@ const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ user, onLogout 
         </div>
         {activeTab === 'scan' && (
           <div className="-mt-6">
-            <QRScanner 
-              key={selectedSession} 
+            <QRScanner
+              ref={scannerRef}
               onScan={handleScan} 
               scanResult={scanResult}
-              startScanner={() => scannerStartRef.current()}
-              stopScanner={() => scannerStopRef.current()}
             />
           </div>
         )}
