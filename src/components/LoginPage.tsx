@@ -78,6 +78,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <h1 className="text-6xl font-extrabold text-gfg-text-light font-heading mb-4 tracking-tight">
             HACK <span className="bg-gfg-red text-gfg-text-light px-2 py-1 leading-none inline-block">HEIST</span>
           </h1>
+          <p className="text-gfg-gold text-lg font-body uppercase tracking-widest mb-2">ATTENDANCE SYSTEM</p>
         </div>
         <div className="bg-gfg-card-bg rounded-lg shadow-2xl border border-gfg-border overflow-hidden">
           <div className="bg-gradient-to-r from-gfg-red to-gfg-red-hover p-4">
@@ -90,7 +91,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 type="email" id="email" value={email}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-gfg-dark-bg border border-gfg-border rounded-lg text-gfg-text-light placeholder-gfg-text-dark focus:border-gfg-gold focus:ring-1 focus:ring-gfg-gold outline-none transition-colors"
-                placeholder="gfg.organizer@example.com"
+                placeholder="your_regno@klu.ac.in"
                 disabled={isLoading}
               />
             </div>
