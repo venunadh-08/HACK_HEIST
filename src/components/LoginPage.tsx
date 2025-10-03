@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 // Logo will be referenced from the public folder, no import needed
+import gfgLogo from '/gfg_logo.png';
 
 const parseCSV = (csvText: string): any[] => {
   const lines = csvText.trim().split('\n');
@@ -70,7 +71,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div className="mb-4">
             {/* CHANGE 3: Use the imported logo variable in the src attribute */}
             {/* CHANGE 3: Reference the logo from the public folder */}
-            <img src="/gfg_logo.png" alt="GFG Logo" className="mx-auto h-24 sm:h-28" />
+            <img src={gfgLogo} alt="GFG Logo" className="mx-auto h-24 sm:h-28" />
           <p className="text-gfg-gold text-lg font-body uppercase tracking-widest mb-2">GFG CAMPUS BODY KARE PRESENTS</p>
           <h1 className="text-6xl font-extrabold text-gfg-text-light font-heading mb-4 tracking-tight">
             HACK <span className="bg-gfg-red text-gfg-text-light px-2 py-1 leading-none inline-block">HEIST</span>
